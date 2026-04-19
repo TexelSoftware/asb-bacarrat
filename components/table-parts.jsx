@@ -461,10 +461,7 @@ function ChatInput({ P, theme }) {
         if (error) throw new Error(error);
         if (cancelled) return;
 
-        const ai = new window.GoogleGenAI({
-          apiKey: token,
-          httpOptions: { apiVersion: 'v1alpha' },
-        });
+        const ai = new window.GoogleGenAI({ apiKey: token });
         const Modality = window.GeminiModality;
 
         const session = await ai.live.connect({
