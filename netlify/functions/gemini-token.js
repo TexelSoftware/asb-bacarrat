@@ -18,7 +18,7 @@ export default async (req) => {
   };
 
   const endpoint =
-    `https://generativelanguage.googleapis.com/v1beta/auth_tokens?key=${encodeURIComponent(apiKey)}`;
+    `https://generativelanguage.googleapis.com/v1alpha/auth_tokens?key=${encodeURIComponent(apiKey)}`;
 
   try {
     const res = await fetch(endpoint, {
