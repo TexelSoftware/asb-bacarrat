@@ -403,9 +403,185 @@ function BottomControls({
   );
 }
 
+const DEALER_SYSTEM_PROMPT =
+  "You are the dealer at Salon Privé, a private baccarat room. " +
+  "Speak formally and concisely. Answer rules questions, comment briefly on hands, " +
+  "and suggest bets when asked. Keep replies under 2 sentences unless explaining rules.";
+
 function ChatInput({ P, theme }) {
   const [value, setValue] = React.useState('');
   const [listening, setListening] = React.useState(false);
+  const [status, setStatus] = React.useState('connecting'); // connecting | ready | error
+
+  const sessionRef = React.useRef(null);
+  const outCtxRef = React.useRef(null);
+  const nextPlayRef = React.useRef(0);
+  const inCtxRef = React.useRef(null);
+  const micStreamRef = React.useRef(null);
+  const workletNodeRef = React.useRef(null);
+
+  // Play a base64 PCM16 24kHz chunk, queued after any currently playing audio.
+  const playPCM = React.useCallback((b64) => {
+    const bin = atob(b64);
+    const buf = new ArrayBuffer(bin.length);
+    const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const int16 = new Int16Array(buf);
+    const f32 = new Float32Array(int16.length);
+    for (let i = 0; i < int16.length; i++) f32[i] = int16[i] / 32768;
+
+    if (!outCtxRef.current) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      outCtxRef.current = new AC({ sampleRate: 24000 });
+    }
+    const ctx = outCtxRef.current;
+    if (ctx.state === 'suspended') ctx.resume();
+    const ab = ctx.createBuffer(1, f32.length, 24000);
+    ab.getChannelData(0).set(f32);
+    const src = ctx.createBufferSource();
+    src.buffer = ab;
+    src.connect(ctx.destination);
+    const startAt = Math.max(ctx.currentTime, nextPlayRef.current);
+    src.start(startAt);
+    nextPlayRef.current = startAt + ab.duration;
+  }, []);
+
+  // Open Live session on mount.
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const init = async () => {
+      try {
+        if (!window.GoogleGenAI) {
+          await new Promise(r => window.addEventListener('genai-ready', r, { once: true }));
+        }
+        const tokRes = await fetch('/api/gemini-token', { method: 'POST' });
+        if (!tokRes.ok) throw new Error(`token ${tokRes.status}`);
+        const { token, error } = await tokRes.json();
+        if (error) throw new Error(error);
+        if (cancelled) return;
+
+        const ai = new window.GoogleGenAI({ apiKey: token });
+        const Modality = window.GeminiModality;
+
+        const session = await ai.live.connect({
+          model: 'gemini-3.1-flash-live-preview',
+          config: {
+            responseModalities: [Modality.AUDIO],
+            speechConfig: {
+              voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Charon' } },
+            },
+            systemInstruction: { parts: [{ text: DEALER_SYSTEM_PROMPT }] },
+          },
+          callbacks: {
+            onopen: () => { if (!cancelled) setStatus('ready'); },
+            onmessage: (msg) => {
+              const parts = msg?.serverContent?.modelTurn?.parts || [];
+              for (const p of parts) {
+                const b64 = p?.inlineData?.data;
+                if (b64) playPCM(b64);
+              }
+              if (msg?.data) playPCM(msg.data);
+            },
+            onerror: (e) => { console.error('Live error', e); if (!cancelled) setStatus('error'); },
+            onclose: () => { if (!cancelled) setStatus('connecting'); },
+          },
+        });
+        sessionRef.current = session;
+      } catch (err) {
+        console.error('Gemini init failed:', err);
+        if (!cancelled) setStatus('error');
+      }
+    };
+    init();
+
+    return () => {
+      cancelled = true;
+      stopMic();
+      try { sessionRef.current?.close?.(); } catch {}
+      sessionRef.current = null;
+      try { outCtxRef.current?.close?.(); } catch {}
+      outCtxRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const sendText = () => {
+    const text = value.trim();
+    if (!text || status !== 'ready' || !sessionRef.current) return;
+    sessionRef.current.sendClientContent({ turns: text, turnComplete: true });
+    setValue('');
+  };
+
+  const startMic = async () => {
+    if (status !== 'ready' || !sessionRef.current) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+      });
+      micStreamRef.current = stream;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AC({ sampleRate: 16000 });
+      inCtxRef.current = ctx;
+
+      const workletSrc = `
+        class PCMSender extends AudioWorkletProcessor {
+          process(inputs) {
+            const input = inputs[0];
+            if (!input || !input[0]) return true;
+            const ch = input[0];
+            const pcm = new Int16Array(ch.length);
+            for (let i = 0; i < ch.length; i++) {
+              const s = Math.max(-1, Math.min(1, ch[i]));
+              pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
+            this.port.postMessage(pcm.buffer, [pcm.buffer]);
+            return true;
+          }
+        }
+        registerProcessor('pcm-sender', PCMSender);
+      `;
+      const blobUrl = URL.createObjectURL(new Blob([workletSrc], { type: 'application/javascript' }));
+      await ctx.audioWorklet.addModule(blobUrl);
+      const srcNode = ctx.createMediaStreamSource(stream);
+      const node = new AudioWorkletNode(ctx, 'pcm-sender');
+      node.port.onmessage = (e) => {
+        const bytes = new Uint8Array(e.data);
+        let bin = '';
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        const b64 = btoa(bin);
+        try {
+          sessionRef.current?.sendRealtimeInput({
+            audio: { data: b64, mimeType: 'audio/pcm;rate=16000' },
+          });
+        } catch (err) { console.error('send audio', err); }
+      };
+      srcNode.connect(node);
+      workletNodeRef.current = node;
+      setListening(true);
+    } catch (err) {
+      console.error('Mic start failed:', err);
+    }
+  };
+
+  const stopMic = () => {
+    try { workletNodeRef.current?.disconnect(); } catch {}
+    workletNodeRef.current = null;
+    micStreamRef.current?.getTracks().forEach(t => t.stop());
+    micStreamRef.current = null;
+    try { inCtxRef.current?.close(); } catch {}
+    inCtxRef.current = null;
+    setListening(false);
+  };
+
+  const toggleMic = () => { listening ? stopMic() : startMic(); };
+
+  const disabled = status !== 'ready';
+  const placeholder =
+    status === 'connecting' ? 'Connecting to dealer…' :
+    status === 'error' ? 'Dealer unavailable' :
+    'Ask the dealer…';
+
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
       <div style={{
@@ -415,11 +591,14 @@ function ChatInput({ P, theme }) {
         display: 'flex', alignItems: 'center',
         padding: '0 14px',
         boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.25)',
+        opacity: disabled ? 0.6 : 1,
       }}>
         <input
           value={value}
           onChange={e => setValue(e.target.value)}
-          placeholder="Ask the dealer…"
+          onKeyDown={e => { if (e.key === 'Enter') sendText(); }}
+          placeholder={placeholder}
+          disabled={disabled}
           style={{
             flex: 1, background: 'transparent', border: 'none', outline: 'none',
             color: P.text, fontFamily: 'Cormorant Garamond, serif',
@@ -427,9 +606,16 @@ function ChatInput({ P, theme }) {
             letterSpacing: 0.2,
           }}
         />
+        {status === 'ready' && (
+          <div style={{
+            width: 6, height: 6, borderRadius: 3, background: P.tie,
+            boxShadow: `0 0 6px ${P.tie}`, marginLeft: 6, flexShrink: 0,
+          }} />
+        )}
       </div>
       <button
-        onClick={() => setListening(l => !l)}
+        onClick={toggleMic}
+        disabled={disabled}
         style={{
           width: 44, height: 44, borderRadius: 12, border: 'none',
           background: listening
@@ -440,12 +626,12 @@ function ChatInput({ P, theme }) {
             : 'inset 0 1px 2px rgba(0,0,0,0.25)',
           border: listening ? 'none' : `0.5px solid ${P.line}`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: 'pointer', transition: 'all 0.2s',
+          cursor: disabled ? 'default' : 'pointer', transition: 'all 0.2s',
+          opacity: disabled ? 0.5 : 1,
         }}
         aria-label="Voice input"
       >
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-          {/* waveform bars, short-tall-tallest-tall-short */}
           {(() => {
             const bars = [4, 9, 14, 9, 4];
             const c = listening ? '#0A0E0C' : P.gold;
