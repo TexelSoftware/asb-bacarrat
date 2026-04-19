@@ -12,15 +12,13 @@ export default async (req) => {
 
   const now = Date.now();
   const body = {
-    config: {
-      uses: 1,
-      expireTime: new Date(now + 30 * 60 * 1000).toISOString(),
-      newSessionExpireTime: new Date(now + 2 * 60 * 1000).toISOString(),
-    },
+    uses: 1,
+    expireTime: new Date(now + 30 * 60 * 1000).toISOString(),
+    newSessionExpireTime: new Date(now + 2 * 60 * 1000).toISOString(),
   };
 
   const endpoint =
-    `https://generativelanguage.googleapis.com/v1alpha/authTokens?key=${encodeURIComponent(apiKey)}`;
+    `https://generativelanguage.googleapis.com/v1beta/auth_tokens?key=${encodeURIComponent(apiKey)}`;
 
   try {
     const res = await fetch(endpoint, {
