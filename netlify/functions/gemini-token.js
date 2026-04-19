@@ -8,9 +8,9 @@ export default async (req) => {
   if (req.method !== 'GET' && req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
   }
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_KEY;
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'GEMINI_API_KEY env var not set' }), {
+    return new Response(JSON.stringify({ error: 'GEMINI_KEY env var not set' }), {
       status: 500,
       headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
     });
