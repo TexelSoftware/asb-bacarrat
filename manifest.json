@@ -1,7 +1,7 @@
 {
   "name": "Baccarat · Salon Privé",
   "short_name": "Baccarat",
-  "start_url": "./main.html",
+  "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
   "orientation": "portrait",
