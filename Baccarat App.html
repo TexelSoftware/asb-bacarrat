@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Baccarat · Salon Privé</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Baccarat">
+<meta name="theme-color" content="#0A0806">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html, body {
+    margin: 0; padding: 0; background: #0A0806;
+    font-family: Inter, sans-serif;
+    min-height: 100vh;
+    color: #EDE7D3;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    padding: 40px 20px; min-height: 100vh; box-sizing: border-box;
+    background-image:
+      radial-gradient(ellipse at 30% 20%, rgba(212,175,55,0.04) 0%, transparent 50%),
+      radial-gradient(ellipse at 70% 80%, rgba(26,71,52,0.12) 0%, transparent 50%),
+      linear-gradient(180deg, #0A0806 0%, #070504 100%);
+  }
+  @media (max-width: 500px) {
+    body { padding: 0; }
+    #root > div[data-screen-label] { width: 100vw !important; height: 100vh !important; height: 100dvh !important; }
+  }
+  button { font-family: inherit; }
+  * { box-sizing: border-box; }
+
+  @keyframes dealIn {
+    from { opacity: 0; transform: translateY(-30px) rotate(-8deg) scale(0.8); }
+    to { opacity: 1; transform: translateY(0) rotate(0) scale(1); }
+  }
+  @keyframes bannerIn {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; } to { opacity: 1; }
+  }
+
+  /* Tweaks panel */
+  .tweaks {
+    position: fixed; right: 16px; bottom: 16px;
+    width: 240px; background: rgba(15,15,15,0.92);
+    backdrop-filter: blur(14px);
+    border: 0.5px solid rgba(212,175,55,0.3);
+    border-radius: 14px; padding: 14px;
+    color: #EDE7D3; z-index: 9999;
+    font-size: 11px; letter-spacing: 0.5px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    display: none;
+  }
+  .tweaks.active { display: block; }
+  .tweaks h4 {
+    margin: 0 0 10px; font-family: 'Cormorant Garamond', serif;
+    font-size: 16px; font-weight: 500; font-style: italic;
+    color: #E8C568; letter-spacing: 0.5px;
+  }
+  .tweaks label {
+    display: block; font-size: 8.5px; letter-spacing: 2px;
+    text-transform: uppercase; color: rgba(237,231,211,0.5);
+    margin-bottom: 6px; font-weight: 600;
+  }
+  .tweaks .seg {
+    display: flex; border: 0.5px solid rgba(237,231,211,0.15);
+    border-radius: 8px; overflow: hidden; margin-bottom: 12px;
+  }
+  .tweaks .seg button {
+    flex: 1; padding: 8px 4px; background: transparent;
+    border: none; color: rgba(237,231,211,0.6);
+    font-size: 10px; font-weight: 600; letter-spacing: 1px;
+    cursor: pointer; text-transform: uppercase;
+  }
+  .tweaks .seg button.active {
+    background: rgba(212,175,55,0.15); color: #E8C568;
+  }
+  .tweaks .seg button + button {
+    border-left: 0.5px solid rgba(237,231,211,0.1);
+  }
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<div class="tweaks" id="tweaks">
+  <h4>Tweaks</h4>
+
+  <label>Theme</label>
+  <div class="seg" id="seg-theme">
+    <button data-val="salon">Salon</button>
+    <button data-val="midnight">Midnight</button>
+  </div>
+
+  <label>Card style</label>
+  <div class="seg" id="seg-card">
+    <button data-val="classic">Classic</button>
+    <button data-val="modern">Modern</button>
+    <button data-val="abstract">Abstract</button>
+  </div>
+</div>
+
+<!-- React -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="components/game-logic.jsx"></script>
+<script type="text/babel" src="components/card.jsx"></script>
+<script type="text/babel" src="components/chip.jsx"></script>
+<script type="text/babel" src="components/roadmap.jsx"></script>
+<script type="text/babel" src="components/table.jsx"></script>
+<script type="text/babel" src="components/table-parts.jsx"></script>
+
+<script type="text/babel">
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "theme": "salon",
+    "cardStyle": "classic"
+  }/*EDITMODE-END*/;
+
+  function App() {
+    const [theme, setTheme] = React.useState(TWEAK_DEFAULTS.theme);
+    const [cardStyle, setCardStyle] = React.useState(TWEAK_DEFAULTS.cardStyle);
+
+    // Wire up Tweaks panel
+    React.useEffect(() => {
+      const segTheme = document.getElementById('seg-theme');
+      const segCard = document.getElementById('seg-card');
+
+      const sync = () => {
+        segTheme.querySelectorAll('button').forEach(b => {
+          b.classList.toggle('active', b.dataset.val === theme);
+        });
+        segCard.querySelectorAll('button').forEach(b => {
+          b.classList.toggle('active', b.dataset.val === cardStyle);
+        });
+      };
+      sync();
+
+      const tHandler = (e) => {
+        if (e.target.matches('button')) {
+          const v = e.target.dataset.val;
+          setTheme(v);
+          window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { theme: v } }, '*');
+        }
+      };
+      const cHandler = (e) => {
+        if (e.target.matches('button')) {
+          const v = e.target.dataset.val;
+          setCardStyle(v);
+          window.parent.postMessage({ type: '__edit_mode_set_keys', edits: { cardStyle: v } }, '*');
+        }
+      };
+      segTheme.addEventListener('click', tHandler);
+      segCard.addEventListener('click', cHandler);
+      return () => {
+        segTheme.removeEventListener('click', tHandler);
+        segCard.removeEventListener('click', cHandler);
+      };
+    }, [theme, cardStyle]);
+
+    return (
+      <div data-screen-label="01 Baccarat Table" style={{
+        position: 'relative', width: 402, height: 874, overflow: 'hidden',
+      }}>
+        <BaccaratTable theme={theme} cardStyle={cardStyle} />
+      </div>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+  // Tweaks protocol
+  window.addEventListener('message', (e) => {
+    if (e.data?.type === '__activate_edit_mode') {
+      document.getElementById('tweaks').classList.add('active');
+    } else if (e.data?.type === '__deactivate_edit_mode') {
+      document.getElementById('tweaks').classList.remove('active');
+    }
+  });
+  window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+</script>
+
+</body>
+</html>
